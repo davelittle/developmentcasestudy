@@ -1,0 +1,38 @@
+﻿@model CreditCard
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Accepted</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+
+    <style>
+        body {
+            padding-top: 20px;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div><h1>You are eligible for a credit card.</h1></div>
+
+    <div>We can offer you a <b>@Model.CardType</b> credit card with APR <b>@Model.InterestRate%</b>.<br /><br /></div>
+    
+    <div><img src="@Model.ImageURL" alt="@Model.CardType card" height="108" width="172"/><br /><br /></div>
+
+    <div>@Model.Description<br /><br /></div>
+
+    <div>
+        <form action=".">
+            <input type="submit" value="Back to application form" class="btn btn-primary" />
+            </form>
+    </div>
+</body>
+</html>
