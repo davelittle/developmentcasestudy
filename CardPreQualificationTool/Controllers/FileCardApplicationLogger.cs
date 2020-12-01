@@ -1,21 +1,29 @@
 ﻿using CardPreQualificationTool.Models;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace CardPreQualificationTool.Controllers
 {
     public class FileCardApplicationLogger : ICardApplicationLogger
     {
-        // Log the details of a customer's application for a credit card.
-        // We log to the hard-coded file log.txt. In real life we would make this configurable, e.g. in appsettings.json.
+        private readonly string _filePath;
+        private bool _headingsWritten = false;
+
+        public FileCardApplicationLogger(string filePath)
+        {
+            _filePath = filePath;
+        }
+
         public void Log(LogEntry logEntry)
         {
-            using StreamWriter writer = File.AppendText("log.txt");
-            writer.WriteLine($"{DateTime.Now} {logEntry.Applicant} | {logEntry.CreditCard}{logEntry.Rejection}");
+            using StreamWriter writer = File.AppendText(_filePath);
+
+            if (!_headingsWritten && (!File.Exists(_filePath) || new FileInfo(_filePath).Length == 0))
+            {
+                writer.WriteLine("Time,First Name,Last Name,Date of Birth,Annual Income (£),Card Type,Interest Rate (%),Rejection Reason");
+                _headingsWritten = true;
+            }
+
+            writer.WriteLine($"{logEntry.Timestamp},{logEntry.FirstName},{logEntry.LastName},{logEntry.DateOfBirth.ToShortDateString()},{logEntry.AnnualIncome:F2},{logEntry.CardType},{logEntry.InterestRate:F1},{logEntry.RejectionReason}");
         }
     }
 }

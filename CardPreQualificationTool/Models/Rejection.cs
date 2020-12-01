@@ -1,17 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace CardPreQualificationTool.Models
+﻿namespace CardPreQualificationTool.Models
 {
-    public class Rejection
+    // Represents a decision that a customer is not eligible for a credit card
+    public class Rejection : Decision
     {
         public string Reason { get; set; }
 
-        public override string ToString()
+        public Rejection(string reason) : base()
         {
-            return $"Rejected: {Reason}";
+            Reason = reason;
+        }
+
+        public override void UpdateLogEntry(LogEntry logEntry)
+        {
+            base.UpdateLogEntry(logEntry);
+            logEntry.RejectionReason = Reason;
         }
     }
 }

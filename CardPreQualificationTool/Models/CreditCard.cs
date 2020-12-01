@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace CardPreQualificationTool.Models
+﻿namespace CardPreQualificationTool.Models
 {
     public class CreditCard
     {
@@ -15,9 +10,10 @@ namespace CardPreQualificationTool.Models
 
         public string Description { get; set; }
 
-        public override string ToString()
+        public void UpdateLogEntry(LogEntry logEntry)
         {
-            return $"Card type: {CardType}, Interest rate: {InterestRate}%";
+            logEntry.CardType = CardType;
+            logEntry.InterestRate = InterestRate;
         }
     }
 }

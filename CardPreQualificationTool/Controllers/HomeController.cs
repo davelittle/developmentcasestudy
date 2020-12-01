@@ -1,12 +1,42 @@
 ﻿using CardPreQualificationTool.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System;
+using System.IO;
 
 namespace CardPreQualificationTool.Controllers
 {
     public class HomeController : Controller
     {
-        private static readonly ICardApplicationLogger _logger = new FileCardApplicationLogger();
+        private static ICardApplicationLogger _logger;
+        private static readonly DecisionRepository _decisions = new DecisionRepository();
+        private static string _errorFilePath;
+
+        public HomeController(IOptions<RequestLoggingConfig> config)
+        {
+            _errorFilePath = config.Value?.ErrorFilePath ?? "error.txt";
+
+            try
+            {
+                string connectionString = config.Value?.ConnectionString;
+
+                if (!string.IsNullOrEmpty(connectionString))
+                {
+                    _logger = new DatabaseCardApplicationLogger(connectionString);
+                }
+                else
+                {
+                    _logger = new FileCardApplicationLogger(config.Value?.RequestFilePath ?? "log.txt");
+                }
+            }
+            catch (Exception e)
+            {
+                // There shouldn't be an exception thrown in this constructor (we only open the database/file for logging when we actually
+                // need to write to them). But if there is an exception, we log it and rethrow so that we don't present the application form to the user
+                LogError(e);
+                throw;
+            }
+        }
 
         // GET: /
         // This is the main application form for a credit card
@@ -22,66 +52,107 @@ namespace CardPreQualificationTool.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult Index([Bind("FirstName,LastName,DateOfBirth,AnnualIncome")] Applicant applicant)
         {
-            if (ModelState.IsValid)
+            try
             {
-                Boolean accepted = false;
-                CreditCard creditCard = null;
-                Rejection rejection = null;
-
-                if (applicant.DateOfBirth.AddYears(18) > DateTime.Now)
+                if (ModelState.IsValid)
                 {
-                    rejection = new Rejection() { Reason = "You are under 18 years of age." };
-                }
-                else
-                {
-                    accepted = true;
+                    Decision decision;
 
-                    if (applicant.AnnualIncome > 30000)
+                    if (applicant.DateOfBirth.AddYears(18) > DateTime.Now)
                     {
-                        // In real life we would use our own images of the credit cards, rather than pointing at images on the Barclaycard
-                        // and Vanquis websites (which may change or move)
-                        creditCard = new CreditCard() { 
-                            CardType = "Barclaycard", 
-                            ImageURL = "https://www.barclaycard.co.uk/content/dam/barclaycard/images/personal/credit-cards/hero-images/barclaycard-platinum-credit-card.xsmall.medium_quality.png", 
-                            InterestRate = 9.9M, 
-                            Description = "Making payment simpler." };
+                        decision = new Rejection("You are under 18 years of age.");
                     }
                     else
                     {
-                        creditCard = new CreditCard() { 
-                            CardType = "Vanquis",
-                            ImageURL = "https://cdn-p.vanquis.co.uk/media/2104376/midnight-blue-flat.png",
-                            InterestRate = 29.9M, 
-                            Description = "Stay in control of your budgeting." };
+                        CreditCard creditCard;
+
+                        if (applicant.AnnualIncome > 30000)
+                        {
+                            creditCard = new CreditCard()
+                            {
+                                CardType = "Barclaycard",
+                                ImageURL = "~/Images/barclaycard.png",
+                                InterestRate = 9.9M,
+                                Description = "Making payment simpler."
+                            };
+                        }
+                        else
+                        {
+                            creditCard = new CreditCard()
+                            {
+                                CardType = "Vanquis",
+                                ImageURL = "~/Images/vanquis.png",
+                                InterestRate = 29.9M,
+                                Description = "Stay in control of your budgeting."
+                            };
+                        }
+
+                        decision = new Acceptance(creditCard);
                     }
+
+                    _logger.Log(new LogEntry(applicant, decision));
+                    Guid requestId = _decisions.Add(decision);
+
+                    // Redirect to the Accepted or Declined page depending on the outcome of the decision
+                    if (decision is Acceptance)
+                    {
+                        return RedirectToAction("Approved", new { requestId = requestId.ToString() });
+                    }
+
+                    return RedirectToAction("Declined", new { requestId = requestId.ToString() });
                 }
 
-                _logger.Log(new LogEntry() { Applicant = applicant, CreditCard = creditCard, Rejection = rejection });
-
-                // Redirect to the Accepted or Declined page depending on the outcome of the decision
-                if (accepted)
-                {
-                    return RedirectToAction("Accepted", creditCard);
-                }
-
-                return RedirectToAction("Declined", rejection);
+                return View(applicant);
             }
-
-            return View(applicant);
+            catch (Exception e)
+            {
+                // Redirect to Error page if an exception occurred (e.g. we couldn't write to the log file)
+                LogError(e);
+                return RedirectToAction("Error");
+            }
         }
 
         // GET: /Accepted
         // This page is displayed if the user has been accepted for a credit card
-        public IActionResult Accepted([Bind("CardType,ImageURL,InterestRate,Description")] CreditCard creditCard)
+        public IActionResult Approved([Bind("requestId")] string requestId)
         {
-            return View(creditCard);
+            Decision decision = _decisions.Get(new Guid(requestId));
+
+            if (decision is Acceptance acceptance)
+            {
+                return View(acceptance.CreditCard);
+            }
+
+            // An invalid request ID was supplied - return 'page not found'
+            return StatusCode(404);
         }
 
         // GET: /Declined
         // This page is displayed if the user has been refused a credit card
-        public IActionResult Declined([Bind("Reason")] Rejection rejection)
+        public IActionResult Declined([Bind("RequestId")] string requestId)
         {
-            return View(rejection);
+            Decision decision = _decisions.Get(new Guid(requestId));
+
+            if (decision is Rejection rejection)
+            {
+                return View(rejection);
+            }
+
+            // An invalid request ID was supplied - return 'page not found'
+            return StatusCode(404);
+        }
+
+        // GET: /Error
+        // This page is displayed if an exception was thrown
+        public IActionResult Error()
+        {
+            return View();
+        }
+
+        public void LogError(Exception e)
+        {
+            using StreamWriter writer = System.IO.File.AppendText(_errorFilePath);
+            writer.WriteLine($"{DateTime.Now} {e}");
         }
     }
 }

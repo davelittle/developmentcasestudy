@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Globalization;
 
 namespace CardPreQualificationTool.Models
@@ -23,11 +22,14 @@ namespace CardPreQualificationTool.Models
         [Display(Name = "Annual Income")]
         public decimal AnnualIncome { get; set; }
 
-        static readonly TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+        private TextInfo _textInfo = CultureInfo.CurrentCulture.TextInfo;
 
-        public override string ToString()
+        public void UpdateLogEntry(LogEntry logEntry)
         {
-            return $"Name: {textInfo.ToTitleCase(FirstName)} {textInfo.ToTitleCase(LastName)}, Date of birth: {DateOfBirth.ToShortDateString()}, Annual income: £{AnnualIncome}";
+            logEntry.FirstName = _textInfo.ToTitleCase(FirstName);
+            logEntry.LastName = _textInfo.ToTitleCase(LastName);
+            logEntry.DateOfBirth = DateOfBirth;
+            logEntry.AnnualIncome = AnnualIncome;
         }
     }
 }
